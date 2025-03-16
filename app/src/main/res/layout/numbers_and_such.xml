@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="409dp"
+        android:layout_height="729dp"
+        android:orientation="vertical"
+        tools:layout_editor_absoluteX="1dp"
+        tools:layout_editor_absoluteY="1dp">
+
+        <TextView
+            android:id="@+id/labelCapacity"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+            android:text="Capacity" />
+
+        <TextView
+            android:id="@+id/textCapacity"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="100 %"
+            android:textAlignment="center"
+            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+            android:textSize="72sp" />
+
+        <TextView
+            android:id="@+id/labelCapacityWh"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+            android:text="Capacity in Wh" />
+
+        <TextView
+            android:id="@+id/textCapacityWh"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1234 Wh"
+            android:textAlignment="center"
+            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+            android:textSize="72sp" />
+
+        <TextView
+            android:id="@+id/labelVoltage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+            android:text="Voltage" />
+
+        <TextView
+            android:id="@+id/textVoltage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="13.7 V"
+            android:textAlignment="center"
+            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+            android:textSize="72sp" />
+
+        <TextView
+            android:id="@+id/labelPower"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+            android:text="Power" />
+
+        <TextView
+            android:id="@+id/textPower"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="-265.1 W"
+            android:textAlignment="center"
+            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+            android:textSize="72sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:baselineAligned="true"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="50"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/labelPower1h"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                    android:text="Power last 1h" />
+
+                <TextView
+                    android:id="@+id/textPower1h"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="- 280 Wh"
+                    android:textAlignment="center"
+                    android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                    android:textSize="48sp" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="50"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/textPower24h"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                    android:text="Power last 24h" />
+
+                <TextView
+                    android:id="@+id/labelPower24h"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="400 Wh"
+                    android:textAlignment="center"
+                    android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                    android:textSize="48sp" />
+            </LinearLayout>
+        </LinearLayout>
+        <TextView
+            android:id="@+id/labelTimeTo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+            android:text="Time to full (based on last h)" />
+
+        <TextView
+            android:id="@+id/textTimeTo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="102d 15h 12m"
+            android:textAlignment="center"
+            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+            android:textSize="60sp" />
+    </LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
