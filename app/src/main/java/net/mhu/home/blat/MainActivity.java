@@ -1,19 +1,34 @@
 package net.mhu.home.blat;
 
+import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 
 import com.google.android.material.snackbar.Snackbar;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.ParcelUuid;
+import android.util.Log;
 import android.view.View;
 
 import androidx.navigation.NavController;
@@ -26,6 +41,7 @@ import net.mhu.home.blat.databinding.ActivityMainBinding;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.text.MessageFormat;
 import java.time.Duration;
@@ -35,142 +51,173 @@ import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String TAG = "BLEVoltageCurrent";
+    private BluetoothAdapter mBluetoothAdapter;
+    private BluetoothLeScanner mScanner;
+    private boolean mScanning;
+    private Handler mHandler;
     private static final int REQUEST_ENABLE_BT = 1;
-    private static final int REQUEST_LOCATION_PERMISSION = 2;
-    private static final long SCAN_PERIOD = 10000; // 10 seconds
-    private static final long RECONNECT_DELAY = 5000; // 5 seconds
+    // Stops scanning after 10 seconds.
+    private static final long SCAN_PERIOD = 10000;
+    private boolean mConnected = false;
+    private String mDeviceName;
+    private String mDeviceAddress;
+    private BluetoothLeService mBluetoothLeService;
 
-    private BluetoothAdapter bluetoothAdapter;
-    private BluetoothLeScanner bluetoothLeScanner;
-    private BluetoothGatt bluetoothGatt;
-    private Handler handler;
+    private static final String TAG = "BLEVoltageCurrent";
+     private ActivityMainBinding binding;
+    // Code to manage Service lifecycle.
+    private final ServiceConnection mServiceConnection = new ServiceConnection() {
 
-    private static final String DEVICE_ADDRESS = "YOUR_DEVICE_ADDRESS"; //Replace with your device address
-    private static final UUID SERVICE_UUID = UUID.fromString("YOUR_SERVICE_UUID"); //Replace with your service UUID
-    private static final UUID VOLTAGE_CHARACTERISTIC_UUID = UUID.fromString("YOUR_VOLTAGE_CHARACTERISTIC_UUID"); //Replace with your voltage characteristic UUID
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder service) {
+            mBluetoothLeService = ((BluetoothLeService.LocalBinder) service).getService();
+            if (!mBluetoothLeService.initialize()) {
+                Log.e(TAG, "Unable to initialize Bluetooth");
+                finish();
+            }
+            // Automatically connects to the device upon successful start-up initialization.
+            mBluetoothLeService.connect(mDeviceAddress);
+        }
 
-    private boolean isScanning = false;
-    private boolean isConnected = false;
-    private AppBarConfiguration appBarConfiguration;
-    private ActivityMainBinding binding;
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+            mBluetoothLeService = null;
+        }
+    };
+    // Handles various events fired by the Service.
+    // ACTION_GATT_CONNECTED: connected to a GATT server.
+    // ACTION_GATT_DISCONNECTED: disconnected from a GATT server.
+    // ACTION_GATT_SERVICES_DISCOVERED: discovered GATT services.
+    // ACTION_DATA_AVAILABLE: received data from the device.  This can be a result of read
+    //                        or notification operations.
+    private final BroadcastReceiver mGattUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
+                mConnected = true;
+            } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
+                mConnected = false;
+            } else if (BluetoothLeService.ACTION_DATA_AVAILABLE.equals(action)) {
+                if(BluetoothLeService.BLE_CHAR_BATTERY.equals((UUID)intent.getSerializableExtra("uuid")) ) {
+                    BatteryData data = (BatteryData) intent.getSerializableExtra(BluetoothLeService.EXTRA_DATA);
+                    renderBatteryData(data);
+                }
+            }
+        }
+    };
+    private static IntentFilter makeGattUpdateIntentFilter() {
+        final IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(BluetoothLeService.ACTION_GATT_CONNECTED);
+        intentFilter.addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED);
+        intentFilter.addAction(BluetoothLeService.ACTION_DATA_AVAILABLE);
 
+        return intentFilter;
+    }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        binding = ActivityMainBinding.inflate(getLayoutInflater());
-        setContentView(binding.getRoot());
+        setContentView(R.layout.numbers_and_such);
+        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
 
-        handler = new Handler();
+        mHandler = new Handler();
 
+        // Use this check to determine whether BLE is supported on the device.  Then you can
+        // selectively disable BLE-related features.
         if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
-            Toast.makeText(this, "BLE not supported", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.ble_not_supported, Toast.LENGTH_SHORT).show();
             finish();
         }
 
-        final BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-        bluetoothAdapter = bluetoothManager.getAdapter();
+        // Initializes a Bluetooth adapter.  For API level 18 and above, get a reference to
+        // BluetoothAdapter through BluetoothManager.
+        final BluetoothManager bluetoothManager =
+                (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        mBluetoothAdapter = bluetoothManager.getAdapter();
 
-        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
-            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-        } else {
-            checkPermissionsAndStartScanning();
+        // Checks if Bluetooth is supported on the device.
+        if (mBluetoothAdapter == null) {
+            Toast.makeText(this, R.string.error_bluetooth_not_supported, Toast.LENGTH_SHORT).show();
+            finish();
+            return;
         }
-    }
+        mScanner = mBluetoothAdapter.getBluetoothLeScanner();
+        Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
+        bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
+        scanLeDevice(true);
 
-    private void checkPermissionsAndStartScanning() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
-                    ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT}, REQUEST_LOCATION_PERMISSION);
-                return;
-            }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_LOCATION_PERMISSION);
-                return;
-            }
-        }
-        startScanning();
     }
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_LOCATION_PERMISSION) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startScanning();
-            } else {
-                Toast.makeText(this, "Location permission denied", Toast.LENGTH_SHORT).show();
-                showRetryDialog();
-            }
+    protected void onResume() {
+        super.onResume();
+        scanLeDevice(true);
+
+        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
+    }
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        // User chose not to enable Bluetooth.
+        if (requestCode == REQUEST_ENABLE_BT && resultCode == Activity.RESULT_CANCELED) {
+            finish();
+            return;
         }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+    @Override
+    protected void onPause() {
+        super.onPause();
+        scanLeDevice(false);
+        unregisterReceiver(mGattUpdateReceiver);
     }
 
-    private void startScanning() {
-        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
-            return;
-        }
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        scanLeDevice(false);
+        unbindService(mServiceConnection);
+        mBluetoothLeService = null;
+    }
 
-        bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
-        if (bluetoothLeScanner == null) {
-            Log.e(TAG, "BluetoothLeScanner is null");
-            return;
-        }
+    // Device scan callback.
+    private ScanCallback mLeScanCallback =
+            new ScanCallback() {
+                @Override
+                public void onScanResult(int callbackType, ScanResult result) {
+                    BluetoothDevice device = result.getDevice();
+                    mDeviceAddress = device.getAddress();
+                    mDeviceName = device.getName();
 
-        ScanSettings settings = new ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                .build();
-
-        List<ScanFilter> filters = new ArrayList<>();
-        // You can add filters if needed, for example to filter by service UUID
-
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-        bluetoothLeScanner.startScan(filters, settings, scanCallback);
-
-        isScanning = true;
-        handler.postDelayed(() -> {
-            if (isScanning) {
-                bluetoothLeScanner.stopScan(scanCallback);
-                isScanning = false;
-                if (!isConnected) {
-                    showRetryDialog();
+                    mBluetoothLeService.connect(mDeviceAddress);
+                    scanLeDevice(false);
                 }
-            }
-        }, SCAN_PERIOD);
-    }
+            };
 
-    private ScanCallback scanCallback = new ScanCallback() {
-        @Override
-        public void onScanResult(int callbackType, ScanResult result) {
-            BluetoothDevice device = result.getDevice();
-            if (device.getAddress().equals(DEVICE_ADDRESS)) {
-                if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                    return;
+    private void scanLeDevice(final boolean enable) {
+        if (enable) {
+            // Stops scanning after a pre-defined scan period.
+            mHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    mScanning = false;
+                    mScanner.stopScan(mLeScanCallback);
                 }
-                bluetoothLeScanner.stopScan(scanCallback);
-                isScanning = false;
-                connectToDevice(device);
-            }
-        }
+            }, SCAN_PERIOD);
 
-        @Override
-        public void onScanFailed(int errorCode) {
-            Log.e(TAG, "Scan failed with error: " + errorCode);
-            showRetryDialog();
-        }
-    };
+            mScanning = true;
+            List<ScanFilter> filters = new ArrayList<>();
+            ScanFilter.Builder scanFilterBuilder = new ScanFilter.Builder();
+            scanFilterBuilder.setDeviceName("BluetoothBattery");
+            filters.add(scanFilterBuilder.build());
 
-    private void connectToDevice(BluetoothDevice device) {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            return;
+            ScanSettings.Builder settingsBuilder = new ScanSettings.Builder();
+            settingsBuilder.setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).setNumOfMatches(1);
+            mScanner.startScan(filters, settingsBuilder.build(), mLeScanCallback);
+        } else {
+            mScanning = false;
+            mScanner.stopScan(mLeScanCallback);
         }
-        bluetoothGatt = device.connectGatt(this, false, gattCallback);
     }
-
 
     private void renderBatteryData(BatteryData data) {
         TextView textCapacity = (TextView) findViewById(R.id.textCapacity);
@@ -194,16 +241,16 @@ public class MainActivity extends AppCompatActivity {
         TextView labelTimeTo = (TextView) findViewById(R.id.labelTimeTo);
         TextView textTimeTo = (TextView) findViewById(R.id.textTimeTo);
         if( data.getMinutesToEmpty() == -1) {
-            labelTimeTo.setText("Time to full (based on lst 1h)");
+            labelTimeTo.setText("Time to full (based on last 1h)");
             textTimeTo.setText(formatDuration(data.getMinutesToFull()));
         }
         else {
-            labelTimeTo.setText("Time to empty (based on lst 1h)");
+            labelTimeTo.setText("Time to empty (based on last 1h)");
             textTimeTo.setText(formatDuration(data.getMinutesToEmpty()));
         }
     }
 
-    private String formatDuration(int minutes) {
+    private static String formatDuration(int minutes) {
 
         if(minutes >= 10*24*60) {
             return "many days";
@@ -217,32 +264,6 @@ public class MainActivity extends AppCompatActivity {
         return MessageFormat.format("{0,number,integer}d {1,number,integer}h {2,number,integer}m", minutes /(24*60), minutes % (24*60), (minutes % (24*60)) % 60);
 
     }
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
-    }
-
-    @Override
-    public boolean onSupportNavigateUp() {
-        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_content_main);
-        return NavigationUI.navigateUp(navController, appBarConfiguration)
-                || super.onSupportNavigateUp();
-    }
 }

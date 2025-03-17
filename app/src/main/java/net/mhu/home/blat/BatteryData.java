@@ -1,7 +1,10 @@
 package net.mhu.home.blat;
 
 
-public class BatteryData {
+import android.bluetooth.BluetoothGattCharacteristic;
+import java.io.Serializable;
+
+public class BatteryData implements Serializable {
     public static final float MAX_CAPACITY_AH = 105.0f;
     public static final float NOMINAL_VOLTAGE = 12.8f;
     private float voltage;
@@ -10,8 +13,12 @@ public class BatteryData {
     private float powerLast1h;
     private float powerLast24h;
 
-    public BatteryData(byte [] bytes) {
-
+    public BatteryData(final BluetoothGattCharacteristic characteristic) {
+        this.voltage = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT16, 0) / 100f;
+        this.current = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT16, 2) / 100f;
+        this.capacityAh = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT16, 4) / 100f;
+        this.powerLast1h = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT16, 6) / 10f;
+        this.powerLast24h = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT16, 8);
     }
 
     public float getCapacity() {
