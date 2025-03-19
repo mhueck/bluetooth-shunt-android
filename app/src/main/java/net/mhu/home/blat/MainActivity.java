@@ -19,10 +19,12 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 
 import com.google.android.material.snackbar.Snackbar;
 
+import androidx.activity.result.ActivityResultLauncher;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.os.Handler;
@@ -31,6 +33,8 @@ import android.os.ParcelUuid;
 import android.util.Log;
 import android.view.View;
 
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
@@ -114,12 +118,46 @@ public class MainActivity extends AppCompatActivity {
 
         return intentFilter;
     }
+    // Define the request code for Bluetooth permissions
+    private static final int REQUEST_BLUETOOTH_PERMISSIONS = 1;
+    private ActivityResultLauncher<String[]> mPermissionLauncher;
+    private void requestBluetoothPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            //check for the newer permissions
+            String[] permissions = {
+                    "android.permission.BLUETOOTH_SCAN",
+                    "android.permission.BLUETOOTH_CONNECT"
+            };
+            //check if we have all permissions
+            if (!hasPermissions(this, permissions)) {
+                //request permissions
+                mPermissionLauncher.launch(permissions);
+            }
+        } else {
+            // Older Android versions only require BLUETOOTH_ADMIN
+            if (ContextCompat.checkSelfPermission(this, "android.permission.BLUETOOTH") != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{"android.permission.BLUETOOTH"}, REQUEST_BLUETOOTH_PERMISSIONS);
+            }
+        }
+    }
+    // helper method to check if all permissions are granted
+    private static boolean hasPermissions(Context context, String... permissions) {
+        if (context != null && permissions != null) {
+            for (String permission : permissions) {
+                if (ActivityCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.numbers_and_such);
-        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
+        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter(), RECEIVER_NOT_EXPORTED);
 
         mHandler = new Handler();
 
@@ -142,6 +180,9 @@ public class MainActivity extends AppCompatActivity {
             finish();
             return;
         }
+        //request bluetooth permissions
+        requestBluetoothPermissions();
+
         mScanner = mBluetoothAdapter.getBluetoothLeScanner();
         Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
         bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
