@@ -1,4 +1,13 @@
-import android.app.Activity;
+package net.mhu.home.blat;
+
+import android.app.AlertDialog;
+import android.app.Dialog;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.os.Bundle;
+
+import androidx.fragment.app.DialogFragment;
+
 public class ConnectFailedFragment extends DialogFragment {
 
     public interface NoticeDialogListener {
@@ -19,7 +28,7 @@ public class ConnectFailedFragment extends DialogFragment {
             listener = (NoticeDialogListener) context;
         } catch (ClassCastException e) {
             // The activity doesn't implement the interface. Throw exception.
-            throw new ClassCastException(activity.toString()
+            throw new ClassCastException(context.toString()
                     + " must implement NoticeDialogListener");
         }
     }
@@ -30,36 +39,15 @@ public class ConnectFailedFragment extends DialogFragment {
         builder.setMessage(R.string.dialog_connect_timeout)
                .setPositiveButton(R.string.connect_retry, new DialogInterface.OnClickListener() {
                    public void onClick(DialogInterface dialog, int id) {
-                    listener.onDialogPositiveClick(NoticeDialogFragment.this);                   
+                    listener.onDialogPositiveClick(ConnectFailedFragment.this);
                 }
                })
                .setNegativeButton(R.string.application_quit, new DialogInterface.OnClickListener() {
                    public void onClick(DialogInterface dialog, int id) {
-                    listener.onDialogNegativeClick(NoticeDialogFragment.this);                   
+                    listener.onDialogNegativeClick(ConnectFailedFragment.this);
                 }
                });
         // Create the AlertDialog object and return it.
         return builder.create();
     }
-}
-
-
-//
-
-public void showNoticeDialog() {
-    // Create an instance of the dialog fragment and show it.
-    DialogFragment dialog = new ConnectFailedFragment();
-    dialog.show(getSupportFragmentManager(), "NoticeDialogFragment");
-}
-
-@Override
-public void onDialogPositiveClick(DialogFragment dialog) {
-    // User taps the dialog's positive button.
-    ...
-}
-
-@Override
-public void onDialogNegativeClick(DialogFragment dialog) {
-    // User taps the dialog's negative button.
-    ...
 }

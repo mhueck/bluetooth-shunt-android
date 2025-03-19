@@ -25,6 +25,7 @@ import android.os.Bundle;
 import com.google.android.material.snackbar.Snackbar;
 
 import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.os.Handler;
@@ -35,6 +36,7 @@ import android.view.View;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.fragment.app.DialogFragment;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
@@ -53,7 +55,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements ConnectFailedFragment.NoticeDialogListener {
 
     private BluetoothAdapter mBluetoothAdapter;
     private BluetoothLeScanner mScanner;
@@ -120,36 +122,38 @@ public class MainActivity extends AppCompatActivity {
     }
     // Define the request code for Bluetooth permissions
     private static final int REQUEST_BLUETOOTH_PERMISSIONS = 1;
-    private ActivityResultLauncher<String[]> mPermissionLauncher;
-    private void requestBluetoothPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            //check for the newer permissions
-            String[] permissions = {
-                    "android.permission.BLUETOOTH_SCAN",
-                    "android.permission.BLUETOOTH_CONNECT"
-            };
-            //check if we have all permissions
-            if (!hasPermissions(this, permissions)) {
-                //request permissions
-                mPermissionLauncher.launch(permissions);
-            }
+    private ActivityResultContracts.RequestMultiplePermissions multiplePermissionsContract;
+    private ActivityResultLauncher<String[]> multiplePermissionLauncher;
+
+    final String[] PERMISSIONS = {
+            "android.permission.BLUETOOTH_SCAN",
+            "android.permission.BLUETOOTH_CONNECT"
+    };
+
+
+    private void askPermissions(ActivityResultLauncher<String[]> multiplePermissionLauncher) {
+        if (!hasPermissions(PERMISSIONS)) {
+            Log.d("PERMISSIONS", "Launching multiple contract permission launcher for ALL required permissions");
+            multiplePermissionLauncher.launch(PERMISSIONS);
         } else {
-            // Older Android versions only require BLUETOOTH_ADMIN
-            if (ContextCompat.checkSelfPermission(this, "android.permission.BLUETOOTH") != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{"android.permission.BLUETOOTH"}, REQUEST_BLUETOOTH_PERMISSIONS);
-            }
+            Log.d("PERMISSIONS", "All permissions are already granted");
+            scanLeDevice(true);
+
         }
     }
-    // helper method to check if all permissions are granted
-    private static boolean hasPermissions(Context context, String... permissions) {
-        if (context != null && permissions != null) {
+
+    private boolean hasPermissions(String[] permissions) {
+        if (permissions != null) {
             for (String permission : permissions) {
-                if (ActivityCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
+                if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                    Log.d("PERMISSIONS", "Permission is not granted: " + permission);
                     return false;
                 }
+                Log.d("PERMISSIONS", "Permission already granted: " + permission);
             }
+            return true;
         }
-        return true;
+        return false;
     }
 
     @Override
@@ -181,14 +185,48 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         //request bluetooth permissions
-        requestBluetoothPermissions();
+        multiplePermissionsContract = new ActivityResultContracts.RequestMultiplePermissions();
+        multiplePermissionLauncher = registerForActivityResult(multiplePermissionsContract, isGranted -> {
+            Log.d("PERMISSIONS", "Launcher result: " + isGranted.toString());
+            if (isGranted.containsValue(false)) {
+                Log.d("PERMISSIONS", "At least one of the permissions was not granted, launching again...");
+                multiplePermissionLauncher.launch(PERMISSIONS);
+            }
+            else {
+                scanLeDevice(true);
 
+            }
+        });
         mScanner = mBluetoothAdapter.getBluetoothLeScanner();
         Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
         bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
-        scanLeDevice(true);
+
+        askPermissions(multiplePermissionLauncher);
+
+
 
     }
+
+    public void showNoticeDialog() {
+        // Create an instance of the dialog fragment and show it.
+        DialogFragment dialog = new ConnectFailedFragment();
+        dialog.show(getSupportFragmentManager(), "NoticeDialogFragment");
+    }
+
+
+
+    @Override
+    public void onDialogPositiveClick(DialogFragment dialog) {
+        // User taps the dialog's positive button.
+        scanLeDevice(true);
+    }
+
+    @Override
+    public void onDialogNegativeClick(DialogFragment dialog) {
+        // User taps the dialog's negative button.
+        finish();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();

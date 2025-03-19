@@ -46,4 +46,7 @@
     </string>
     <string name="error_bluetooth_not_supported">Bluetooth is not supported on this device.</string>
     <string name="ble_not_supported">Bluetooth is not supported by this device.</string>
+    <string name="dialog_connect_timeout">Time out while trying to connect to battery</string>
+    <string name="connect_retry">Retry</string>
+    <string name="application_quit">Quit</string>
 </resources>
