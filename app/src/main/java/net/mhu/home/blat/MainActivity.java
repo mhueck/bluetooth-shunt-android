@@ -127,7 +127,9 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
 
     final String[] PERMISSIONS = {
             "android.permission.BLUETOOTH_SCAN",
-            "android.permission.BLUETOOTH_CONNECT"
+            "android.permission.BLUETOOTH_CONNECT",
+	    "android.permission.ACCESS_FINE_LOCATION",
+	    "android.permission.ACCESS_COARSE_LOCATION"
     };
 
     // Define the request code for Bluetooth permissions
@@ -316,8 +318,8 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
             mScanning = true;
             List<ScanFilter> filters = new ArrayList<>();
             ScanFilter.Builder scanFilterBuilder = new ScanFilter.Builder();
-            scanFilterBuilder.setDeviceName("Meta Quest 3");
-            scanFilterBuilder.setServiceUuid(new ParcelUuid(UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb")));
+            scanFilterBuilder.setDeviceName("BLEBattery");
+            // scanFilterBuilder.setServiceUuid(new ParcelUuid(UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb")));
             filters.add(scanFilterBuilder.build());
 
             ScanSettings.Builder settingsBuilder = new ScanSettings.Builder();
