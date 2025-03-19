@@ -49,4 +49,5 @@
     <string name="dialog_connect_timeout">Time out while trying to connect to battery</string>
     <string name="connect_retry">Retry</string>
     <string name="application_quit">Quit</string>
+    <string name="bluetooth_permissions_denied">Required permissions were not granted.</string>
 </resources>

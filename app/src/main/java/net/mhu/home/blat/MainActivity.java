@@ -130,30 +130,37 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
             "android.permission.BLUETOOTH_CONNECT"
     };
 
+    // Define the request code for Bluetooth permissions
+    private ActivityResultLauncher<String[]> mPermissionLauncher;
 
-    private void askPermissions(ActivityResultLauncher<String[]> multiplePermissionLauncher) {
-        if (!hasPermissions(PERMISSIONS)) {
-            Log.d("PERMISSIONS", "Launching multiple contract permission launcher for ALL required permissions");
-            multiplePermissionLauncher.launch(PERMISSIONS);
+    // Method to request Bluetooth permissions
+    private void requestBluetoothPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12 (API level 31) and higher require BLUETOOTH_SCAN and BLUETOOTH_CONNECT
+
+            // Check if we have all permissions
+            if (!hasPermissions(this, PERMISSIONS)) {
+                // Request permissions
+                mPermissionLauncher.launch(PERMISSIONS);
+            }
         } else {
-            Log.d("PERMISSIONS", "All permissions are already granted");
-            scanLeDevice(true);
-
+            // Older Android versions only require BLUETOOTH
+            if (ContextCompat.checkSelfPermission(this, "android.permission.BLUETOOTH") != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{"android.permission.BLUETOOTH"}, REQUEST_BLUETOOTH_PERMISSIONS);
+            }
         }
     }
 
-    private boolean hasPermissions(String[] permissions) {
-        if (permissions != null) {
+    // Helper method to check if all permissions are granted
+    private static boolean hasPermissions(Context context, String... permissions) {
+        if (context != null && permissions != null) {
             for (String permission : permissions) {
-                if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                    Log.d("PERMISSIONS", "Permission is not granted: " + permission);
+                if (ActivityCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
                     return false;
                 }
-                Log.d("PERMISSIONS", "Permission already granted: " + permission);
             }
-            return true;
         }
-        return false;
+        return true;
     }
 
     @Override
@@ -161,7 +168,8 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.numbers_and_such);
-        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter(), RECEIVER_NOT_EXPORTED);
+
+        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter(), Context.RECEIVER_NOT_EXPORTED);
 
         mHandler = new Handler();
 
@@ -184,26 +192,32 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
             finish();
             return;
         }
-        //request bluetooth permissions
-        multiplePermissionsContract = new ActivityResultContracts.RequestMultiplePermissions();
-        multiplePermissionLauncher = registerForActivityResult(multiplePermissionsContract, isGranted -> {
-            Log.d("PERMISSIONS", "Launcher result: " + isGranted.toString());
-            if (isGranted.containsValue(false)) {
-                Log.d("PERMISSIONS", "At least one of the permissions was not granted, launching again...");
-                multiplePermissionLauncher.launch(PERMISSIONS);
-            }
-            else {
-                scanLeDevice(true);
 
-            }
-        });
         mScanner = mBluetoothAdapter.getBluetoothLeScanner();
         Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
         bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
 
-        askPermissions(multiplePermissionLauncher);
+        // Register permission launcher for newer Android versions (Android 12 and above)
+        mPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(),
+                result -> {
+                    List<Boolean> permissionsGranted = new ArrayList<>();
+                    for (Boolean granted : result.values()) {
+                        permissionsGranted.add(granted);
+                    }
+                    if (!permissionsGranted.contains(false)) {
+                        // Permissions granted, proceed with Bluetooth operations
+                        Log.d(TAG, "Bluetooth permissions granted");
+                        // You might want to start scanning or other Bluetooth operations here
+                        scanLeDevice(true);
+                    } else {
+                        // Permissions denied, handle accordingly (e.g., show a message)
+                        Log.w(TAG, "Bluetooth permissions denied");
+                        Toast.makeText(this, R.string.bluetooth_permissions_denied, Toast.LENGTH_LONG).show();
+                    }
+                });
 
-
+        // Request Bluetooth permissions
+        requestBluetoothPermissions();
 
     }
 
@@ -232,7 +246,7 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
         super.onResume();
         scanLeDevice(true);
 
-        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
+        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter(), Context.RECEIVER_NOT_EXPORTED);
     }
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -256,6 +270,7 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
         scanLeDevice(false);
         unbindService(mServiceConnection);
         mBluetoothLeService = null;
+        // unregisterReceiver(mGattUpdateReceiver);
     }
 
     // Device scan callback.
@@ -263,6 +278,8 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
             new ScanCallback() {
                 @Override
                 public void onScanResult(int callbackType, ScanResult result) {
+                    Log.i(TAG, "onScanResult: " + result);
+
                     BluetoothDevice device = result.getDevice();
                     mDeviceAddress = device.getAddress();
                     mDeviceName = device.getName();
@@ -270,23 +287,37 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
                     mBluetoothLeService.connect(mDeviceAddress);
                     scanLeDevice(false);
                 }
+                @Override
+                public void onScanFailed(int errorCode) {
+                    Log.w(TAG, "onScanFailed: code " + errorCode);
+                }
             };
 
     private void scanLeDevice(final boolean enable) {
+        Log.i(TAG, "Scan LE device: "+enable);
         if (enable) {
+            if( mScanning ) {
+                Log.w(TAG, "Scan already in progress");
+                return;
+            }
             // Stops scanning after a pre-defined scan period.
             mHandler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    mScanning = false;
+                    if( mScanning ) {
+                        mScanning = false;
+                        showNoticeDialog();
+                    }
                     mScanner.stopScan(mLeScanCallback);
+                    Log.w(TAG, "Timeout scan LE device");
                 }
-            }, SCAN_PERIOD);
+            }, 30000);
 
             mScanning = true;
             List<ScanFilter> filters = new ArrayList<>();
             ScanFilter.Builder scanFilterBuilder = new ScanFilter.Builder();
-            scanFilterBuilder.setDeviceName("BluetoothBattery");
+            scanFilterBuilder.setDeviceName("Meta Quest 3");
+            scanFilterBuilder.setServiceUuid(new ParcelUuid(UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb")));
             filters.add(scanFilterBuilder.build());
 
             ScanSettings.Builder settingsBuilder = new ScanSettings.Builder();

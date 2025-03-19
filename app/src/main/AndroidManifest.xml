@@ -20,10 +20,16 @@
             android:theme="@style/Theme.BluetoothBattery">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <receiver
+            android:name=".MainActivity"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.example.MY_CUSTOM_ACTION" />
+            </intent-filter>
+        </receiver>
 
     </application>
 
