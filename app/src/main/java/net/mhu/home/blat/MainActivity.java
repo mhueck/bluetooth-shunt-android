@@ -105,8 +105,10 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
             Log.d(TAG, "onReceive: " + action);
             if (BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
                 mConnected = true;
+	        renderStatus("Connected");
             } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
                 mConnected = false;
+	        renderStatus("Disconnected");
             } else if (BluetoothLeService.ACTION_DATA_AVAILABLE.equals(action)) {
                 mConnected = true;
                 if(BluetoothLeService.BLE_CHAR_BATTERY.equals((UUID)intent.getSerializableExtra("uuid")) ) {
@@ -297,8 +299,10 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
                     mDeviceName = device.getName();
                     scanLeDevice(false);
 
-                    if(mBluetoothLeService != null)
+                    if(mBluetoothLeService != null) {
                         mBluetoothLeService.connect(mDeviceAddress);
+	                renderStatus("Connecting...");
+		    }
                     else
                         Log.w(TAG, "mBluetoothLeService is null");
                 }
@@ -317,8 +321,10 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
 	    }
 	    if( mDeviceAddress != null ) {
 		Log.i(TAG, "Already have device address - skipping scan and connect instead");
-		if( mBluetoothLeService != null )
+		if( mBluetoothLeService != null ) {
                     mBluetoothLeService.connect(mDeviceAddress);
+	            renderStatus("Connecting...");
+		}
 		return;
 	    }
             if( mScanning ) {
@@ -347,14 +353,22 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
             ScanSettings.Builder settingsBuilder = new ScanSettings.Builder();
             settingsBuilder.setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).setNumOfMatches(1);
             mScanner.startScan(filters, settingsBuilder.build(), mLeScanCallback);
+	    renderStatus("Scanning...");
         } else {
             mScanning = false;
             mScanner.stopScan(mLeScanCallback);
         }
     }
+    private void renderStatus(String status) {
+        TextView textStatus = (TextView) findViewById(R.id.textStatus);
+        textStatus.setText(status);
+    }
 
     private void renderBatteryData(BatteryData data) {
         Log.d(TAG, "renderBatteryData: "+data);
+	if( data.getVoltage() <> 0f ) {
+		renderStatus("Receiving");
+	}
         TextView textCapacity = (TextView) findViewById(R.id.textCapacity);
         textCapacity.setText(MessageFormat.format("{0,number,integer} %", (int) data.getCapacity()));
 
