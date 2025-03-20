@@ -13,6 +13,8 @@ public class BatteryData implements Serializable {
     private float powerLast1h;
     private float powerLast24h;
 
+    public BatteryData() {
+    }
     public BatteryData(final BluetoothGattCharacteristic characteristic) {
         this.voltage = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT16, 0) / 100f;
         this.current = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT16, 2) / 100f;

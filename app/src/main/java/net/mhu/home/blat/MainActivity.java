@@ -89,6 +89,7 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
             mBluetoothLeService = null;
+	    mConnected = false;
         }
     };
     // Handles various events fired by the Service.
@@ -107,6 +108,7 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
             } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
                 mConnected = false;
             } else if (BluetoothLeService.ACTION_DATA_AVAILABLE.equals(action)) {
+                mConnected = true;
                 if(BluetoothLeService.BLE_CHAR_BATTERY.equals((UUID)intent.getSerializableExtra("uuid")) ) {
                     BatteryData data = (BatteryData) intent.getSerializableExtra(BluetoothLeService.EXTRA_DATA);
                     renderBatteryData(data);
@@ -147,6 +149,9 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
                 // Request permissions
                 mPermissionLauncher.launch(PERMISSIONS);
             }
+	    else {
+                scanLeDevice(true);
+	    }
         } else {
             // Older Android versions only require BLUETOOTH
             if (ContextCompat.checkSelfPermission(this, "android.permission.BLUETOOTH") != PackageManager.PERMISSION_GRANTED) {
@@ -172,6 +177,8 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.numbers_and_such);
+	// initialize UI with zeros
+	renderBatteryData(new BatteryData());
 
         registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter(), Context.RECEIVER_EXPORTED);
 
@@ -274,6 +281,7 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
         scanLeDevice(false);
         unbindService(mServiceConnection);
         mBluetoothLeService = null;
+        mConnected = false;
         // unregisterReceiver(mGattUpdateReceiver);
     }
 
@@ -303,6 +311,16 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
     private void scanLeDevice(final boolean enable) {
         Log.i(TAG, "Scan LE device: "+enable);
         if (enable) {
+            if( mConnected ) {
+		Log.i(TAG, "Already connected - skipping scan");
+                return;
+	    }
+	    if( mDeviceAddress != null ) {
+		Log.i(TAG, "Already have device address - skipping scan and connect instead");
+		if( mBluetoothLeService != null )
+                    mBluetoothLeService.connect(mDeviceAddress);
+		return;
+	    }
             if( mScanning ) {
                 Log.w(TAG, "Scan already in progress");
                 return;
@@ -311,20 +329,19 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
             mHandler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    if( mScanning ) {
-                        mScanning = false;
-                        showNoticeDialog();
-                    }
                     mScanner.stopScan(mLeScanCallback);
-                    Log.w(TAG, "Timeout scan LE device");
+                    mScanning = false;
+                    if( mDeviceAddress == null ) {
+                        Log.w(TAG, "Timeout scan LE device");
+                        showNoticeDialog();
+		    }    	    
                 }
-            }, 30000);
+            }, SCAN_PERIOD);
 
             mScanning = true;
             List<ScanFilter> filters = new ArrayList<>();
             ScanFilter.Builder scanFilterBuilder = new ScanFilter.Builder();
             scanFilterBuilder.setDeviceName("BLEBattery");
-            // scanFilterBuilder.setServiceUuid(new ParcelUuid(UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb")));
             filters.add(scanFilterBuilder.build());
 
             ScanSettings.Builder settingsBuilder = new ScanSettings.Builder();
