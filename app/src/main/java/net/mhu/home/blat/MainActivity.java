@@ -70,19 +70,20 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
     private BluetoothLeService mBluetoothLeService;
 
     private static final String TAG = "BLEVoltageCurrent";
-     private ActivityMainBinding binding;
+    private ActivityMainBinding binding;
     // Code to manage Service lifecycle.
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
-
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder service) {
+            Log.i(TAG, "onServiceConnected: " + componentName);
             mBluetoothLeService = ((BluetoothLeService.LocalBinder) service).getService();
             if (!mBluetoothLeService.initialize()) {
                 Log.e(TAG, "Unable to initialize Bluetooth");
                 finish();
             }
             // Automatically connects to the device upon successful start-up initialization.
-            mBluetoothLeService.connect(mDeviceAddress);
+            if( mDeviceAddress != null)
+                mBluetoothLeService.connect(mDeviceAddress);
         }
 
         @Override
@@ -100,6 +101,7 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
         @Override
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
+            Log.d(TAG, "onReceive: " + action);
             if (BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
                 mConnected = true;
             } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
@@ -171,7 +173,7 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
 
         setContentView(R.layout.numbers_and_such);
 
-        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter(), Context.RECEIVER_NOT_EXPORTED);
+        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter(), Context.RECEIVER_EXPORTED);
 
         mHandler = new Handler();
 
@@ -248,7 +250,7 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
         super.onResume();
         scanLeDevice(true);
 
-        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter(), Context.RECEIVER_NOT_EXPORTED);
+        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter(), Context.RECEIVER_EXPORTED);
     }
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -285,9 +287,12 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
                     BluetoothDevice device = result.getDevice();
                     mDeviceAddress = device.getAddress();
                     mDeviceName = device.getName();
-
-                    mBluetoothLeService.connect(mDeviceAddress);
                     scanLeDevice(false);
+
+                    if(mBluetoothLeService != null)
+                        mBluetoothLeService.connect(mDeviceAddress);
+                    else
+                        Log.w(TAG, "mBluetoothLeService is null");
                 }
                 @Override
                 public void onScanFailed(int errorCode) {
@@ -332,6 +337,7 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
     }
 
     private void renderBatteryData(BatteryData data) {
+        Log.d(TAG, "renderBatteryData: "+data);
         TextView textCapacity = (TextView) findViewById(R.id.textCapacity);
         textCapacity.setText(MessageFormat.format("{0,number,integer} %", (int) data.getCapacity()));
 
@@ -373,7 +379,7 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
         if( minutes < 60*24) {
             return MessageFormat.format("{0,number,integer}h {1,number,integer}m", minutes / 60, minutes % 60);
         }
-        return MessageFormat.format("{0,number,integer}d {1,number,integer}h {2,number,integer}m", minutes /(24*60), minutes % (24*60), (minutes % (24*60)) % 60);
+        return MessageFormat.format("{0,number,integer}d {1,number,integer}h {2,number,integer}m", minutes /(24*60), (minutes % (24*60)) / 60, (minutes % (24*60)) % 60);
 
     }
 

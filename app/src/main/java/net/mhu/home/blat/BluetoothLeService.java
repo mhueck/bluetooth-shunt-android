@@ -41,7 +41,7 @@ import java.util.UUID;
  * given Bluetooth LE device.
  */
 public class BluetoothLeService extends Service {
-    public static UUID BLE_CHAR_BATTERY = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb");
+    public static UUID BLE_CHAR_BATTERY = UUID.fromString("00002ae1-0000-1000-8000-00805f9b34fb");
     public static UUID BLE_SERVICE_BATTERY = UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb");
 
     private final static String TAG = BluetoothLeService.class.getSimpleName();
@@ -97,9 +97,9 @@ public class BluetoothLeService extends Service {
                 for (BluetoothGattService gattService : mBluetoothGatt.getServices()) {
                     for (BluetoothGattCharacteristic gattCharacteristic : gattService.getCharacteristics()) {
                         UUID uuid = gattCharacteristic.getUuid();
-
+                        Log.i(TAG, "Characteristic UUID: "+uuid.toString());
                         if (uuid.equals(BluetoothLeService.BLE_CHAR_BATTERY)) {
-                            Log.e(TAG, "found battery characterstic");
+                            Log.i(TAG, "found battery characterstic");
                             mBluetoothGatt.setCharacteristicNotification(gattCharacteristic, true);
                         }
                     }
