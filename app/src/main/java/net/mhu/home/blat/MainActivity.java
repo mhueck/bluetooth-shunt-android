@@ -366,9 +366,9 @@ public class MainActivity extends AppCompatActivity implements ConnectFailedFrag
 
     private void renderBatteryData(BatteryData data) {
         Log.d(TAG, "renderBatteryData: "+data);
-	if( data.getVoltage() <> 0f ) {
-		renderStatus("Receiving");
-	}
+        if( data.getVoltage() != 0f ) {
+            renderStatus("Receiving");
+        }
         TextView textCapacity = (TextView) findViewById(R.id.textCapacity);
         textCapacity.setText(MessageFormat.format("{0,number,integer} %", (int) data.getCapacity()));
 
